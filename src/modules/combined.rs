@@ -1,14 +1,12 @@
 use crate::module::{Module, ModuleResult};
+#[derive(Debug)]
 pub struct Combined {
     m1: Box<dyn Module>,
     m2: Box<dyn Module>,
 }
 impl Combined {
     pub fn new(m1: Box<dyn Module>, m2: Box<dyn Module>) -> Self {
-        Combined {
-            m1,
-            m2,
-        }
+        Combined { m1, m2 }
     }
 }
 impl Module for Combined {
@@ -17,8 +15,8 @@ impl Module for Combined {
         let res2 = self.m2.eval()?;
         if res1.is_none() || res2.is_none() {
             Ok(None)
-        }
-        else {
+        } else {
+            // TODO: Support `Combined` for Modules that evaluate to None
             Ok(Some(format!("{} {}", res1.unwrap(), res2.unwrap())))
         }
     }

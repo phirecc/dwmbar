@@ -1,7 +1,7 @@
 use crate::module::{Module, ModuleResult};
 use std::path::Path;
-pub struct Vpn {
-}
+#[derive(Debug)]
+pub struct Vpn {}
 impl Module for Vpn {
     fn eval(&self) -> ModuleResult {
         let vpns = ["wg0", "wgnord", "wg-mullvad", "mlvd"];

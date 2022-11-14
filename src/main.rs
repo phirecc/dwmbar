@@ -1,11 +1,4 @@
-use std::{
-    io::BufRead,
-    io::BufReader,
-    process::{Command, Stdio},
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::{sync::mpsc, sync::Arc, sync::Mutex, thread, time::Duration};
 mod module;
 mod modules;
 
@@ -17,31 +10,10 @@ extern "C" {
     fn XFlush(display: usize) -> i32;
 }
 
-fn watch_pulse_events(bar: Arc<Bar>) {
-    let vol_idx = 3; // TODO: Maybe find this dynamically?
-    let out = Command::new("pactl")
-        .arg("subscribe")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let r = BufReader::new(out.stdout.unwrap());
-    let mut count = 0;
-    for line in r.lines() {
-        let line = line.unwrap();
-        if line.contains("change' on source") {
-            count += 1;
-            // We always get 2 such messages per volume change
-            if count % 2 == 0 {
-                bar.results.lock().unwrap()[vol_idx] =
-                    (bar.parts[vol_idx].0).eval().unwrap_or_else(|_| Some("ERROR".to_string()));
-                bar.display_results();
-            }
-        }
-    }
-}
+type BarPart = (Arc<dyn module::Module>, usize);
 
 struct Bar {
-    parts: Vec<(Box<dyn module::Module>, usize)>,
+    parts: Vec<BarPart>,
     display: Mutex<usize>,
     root: usize,
     results: Mutex<Vec<Option<String>>>,
@@ -51,14 +23,21 @@ impl Bar {
     pub fn new() -> Self {
         let display = unsafe { XOpenDisplay(0) };
         let root = unsafe { XDefaultRootWindow(display) };
-        let parts: Vec<(Box<dyn module::Module>, usize)> = vec![
-            (Box::new(modules::Vpn{}), 2),
-            (Box::new(modules::Combined::new(Box::new(modules::CpuTemperature{}), Box::new(modules::LoadAvg{}))), 2),
-            (Box::new(modules::MemoryUsage{}), 2),
-            (Box::new(modules::Volume{}), 5),
-            (Box::new(modules::Battery{}), 10),
-            (Box::new(modules::DateTime{}), 10),
+        let parts: Vec<BarPart> = vec![
+            (Arc::new(modules::Vpn {}), 2),
+            (
+                Arc::new(modules::Combined::new(
+                    Box::new(modules::CpuTemperature {}),
+                    Box::new(modules::LoadAvg {}),
+                )),
+                2,
+            ),
+            (Arc::new(modules::MemoryUsage {}), 2),
+            (Arc::new(modules::Volume {}), 5),
+            (Arc::new(modules::Battery {}), 10),
+            (Arc::new(modules::DateTime {}), 10),
         ];
+
         Self {
             results: Mutex::new(vec![None; parts.len()]),
             parts,
@@ -85,6 +64,30 @@ impl Bar {
         self.setroot(s);
     }
 
+    fn evaluate(part: &BarPart) -> Option<String> {
+        let res = (part.0).eval();
+        match res {
+            Ok(x) => x,
+            Err(e) => {
+                eprintln!("Module {:?} errored: {}", part, e);
+                Some("ERROR".into())
+            }
+        }
+    }
+    pub fn start_watches(&self) {
+        let (tx, rx) = mpsc::channel();
+        // XXX This spawns a thread for every bar module. Most of them will not have watches and
+        // exit immediately. This unneccessary thread startup overhead could be avoided.
+        for (i, p) in self.parts.iter().enumerate() {
+            let x = Arc::clone(&p.0);
+            let tx = tx.clone();
+            thread::spawn(move || x.watch(i, tx));
+        }
+        for r in rx {
+            self.results.lock().unwrap()[r] = Self::evaluate(&self.parts[r]);
+            self.display_results();
+        }
+    }
     pub fn run(&self) {
         let mut counter = 0;
         loop {
@@ -92,14 +95,7 @@ impl Bar {
                 let mut r = self.results.lock().unwrap();
                 for (i, part) in self.parts.iter().enumerate() {
                     if counter % part.1 == 0 {
-                        let res = (part.0).eval();
-                        r[i] = match res {
-                            Ok(x) => x,
-                            Err(e) => {
-                                eprintln!("Module ({:?}) errored: {}", i, e);
-                                Some("ERROR".into())
-                            }
-                        };
+                        r[i] = Self::evaluate(part);
                     }
                 }
             }
@@ -113,6 +109,6 @@ impl Bar {
 fn main() {
     let bar = Arc::new(Bar::new());
     let cl = bar.clone();
-    thread::spawn(|| watch_pulse_events(cl));
+    thread::spawn(move || cl.start_watches());
     bar.run();
 }

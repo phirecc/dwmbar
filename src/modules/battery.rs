@@ -1,7 +1,7 @@
 use crate::module::{Module, ModuleResult};
 use std::fs;
-pub struct Battery {
-}
+#[derive(Debug)]
+pub struct Battery {}
 impl Module for Battery {
     fn eval(&self) -> ModuleResult {
         let base = "/sys/class/power_supply/BAT0/";
@@ -14,9 +14,9 @@ impl Module for Battery {
             status = "CHR ";
         }
         Ok(Some(format!(
-                    "{}{}%",
-                    status,
-                    ((charge_now as f64 / charge_full as f64) * 100.0) as usize
-                    )))
+            "{}{}%",
+            status,
+            ((charge_now as f64 / charge_full as f64) * 100.0) as usize
+        )))
     }
 }

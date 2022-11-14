@@ -1,6 +1,6 @@
 use crate::module::{Module, ModuleResult};
-pub struct DateTime {
-}
+#[derive(Debug)]
+pub struct DateTime {}
 impl Module for DateTime {
     fn eval(&self) -> ModuleResult {
         let dt = chrono::Local::now();

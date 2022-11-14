@@ -1,7 +1,7 @@
 use crate::module::{Module, ModuleResult};
 use std::fs;
-pub struct LoadAvg {
-}
+#[derive(Debug)]
+pub struct LoadAvg {}
 impl Module for LoadAvg {
     fn eval(&self) -> ModuleResult {
         let s = fs::read_to_string("/proc/loadavg")?;

@@ -1,7 +1,7 @@
 use crate::module::{Module, ModuleResult};
 use std::fs;
-pub struct CpuTemperature {
-}
+#[derive(Debug)]
+pub struct CpuTemperature {}
 impl Module for CpuTemperature {
     fn eval(&self) -> ModuleResult {
         // TODO This currently would print an ugly "No such file or directory" error. I think using
