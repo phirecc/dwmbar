@@ -19,16 +19,11 @@ impl Module for Volume {
             .spawn()
             .unwrap();
         let r = BufReader::new(out.stdout.unwrap());
-        let mut count = 0;
         for line in r.lines() {
             let line = line.unwrap();
-            if line.contains("change' on source") {
-                count += 1;
-                // We always get 2 such messages per volume change
-                if count % 2 == 0 {
-                    if let Err(e) = tx.send(idx) {
-                        eprintln!("tx failed in watch {}: {}", idx, e)
-                    }
+            if line.contains("change' on sink") {
+                if let Err(e) = tx.send(idx) {
+                    eprintln!("tx failed in watch {}: {}", idx, e)
                 }
             }
         }
